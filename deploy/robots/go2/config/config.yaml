@@ -4,9 +4,9 @@ FSM:
       id: 1
     FixStand:
       id: 2
-    Mimic_Hopscotch:
+    Velocity:
       id: 3
-      type: Mimic
+      type: RLBase
   Passive:
     transitions: 
       FixStand: LT + up.on_pressed
@@ -15,7 +15,7 @@ FSM:
   FixStand:
     transitions: 
       Passive: LT + B.on_pressed
-      Mimic_Hopscotch: RT + A.on_pressed
+      Velocity: RT + A.on_pressed
     kp: [60, 80, 80, 60, 80, 80, 60, 80, 80, 60, 80, 80]
     kd: [5, 4, 4, 5, 4, 4, 5, 4, 4, 5, 4, 4]
     ts: [0, 1, 2]
@@ -24,12 +24,8 @@ FSM:
       [0.0, 1.36, -2.65, 0.0, 1.36, -2.65, 0.0, 1.36, -2.65, 0.0, 1.36, -2.65],
       [0., 0.8, -1.5, 0., 0.8, -1.5, 0., 0.8, -1.5, 0., 0.8, -1.5],
     ]
-  Mimic_Hopscotch:
-    transitions:
+  Velocity:
+    transitions: 
       Passive: LT + B.on_pressed
-
-    motion_file: config/policy/mimic/traj_hopscotch_friction_6cm_lsq/params/traj_hopscotch_friction_6cm_lsq.npz
-    policy_dir: config/policy/mimic/traj_hopscotch_friction_6cm_lsq/
-    time_start: 0.0
-    time_end: 1000.0
-    end_state: Passive
+    policy_dir: config/policy/velocity
+    
