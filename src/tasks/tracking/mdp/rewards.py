@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 import torch
+import numpy as np
+import re
 
 from mjlab.sensor import ContactSensor
 from mjlab.utils.lab_api.math import quat_error_magnitude
@@ -133,3 +135,64 @@ def self_collision_cost(
     return hit.sum(dim=-1).float()  # [B]
   assert data.found is not None
   return data.found.squeeze(-1)
+
+def _leg_prefix(name: str) -> str:
+  m = re.match(r"^(FL|FR|RL|RR)", str(name))
+  if m is None:
+      raise ValueError(f"Couldn't extract a leg prefix (FL/FR/RL/RR) from '{name}'")
+  return m.group(1)
+
+class motion_contact_tracking:
+  """Reward/penalty for matching a reference foot-contact schedule.
+
+  Reads ``foot_contacts`` ([T, F], 1=contact) and ``foot_contact_names`` ([F])
+  from the same .npz used by *command_name*'s MotionCommand, permutes columns
+  to match *sensor_name*'s ContactSensor.primary_names order, then penalizes
+  frame-by-frame disagreement between reference and actual (sensor ``found``)
+  contact state, indexed by the command's own ``time_steps`` so it stays in
+  sync with the position/orientation tracking terms above.
+  """
+
+  def __init__(self, cfg, env: ManagerBasedRlEnv):
+    command = cast(
+      MotionCommand, env.command_manager.get_term(cfg.params["command_name"])
+    )
+    sensor: ContactSensor = env.scene[cfg.params["sensor_name"]]
+
+    data = np.load(command.cfg.motion_file)
+    if "foot_contacts" not in data or "foot_contact_names" not in data:
+      raise KeyError(
+        "Motion file is missing 'foot_contacts'/'foot_contact_names' -- add "
+        "both when building the .npz."
+      )
+
+    sensor_primary_names = list(dict.fromkeys(
+      slot.primary_name for slot in sensor._slots
+    ))
+
+    contact_names = [str(n) for n in data["foot_contact_names"]]
+    contact_prefix_to_idx = {_leg_prefix(n): i for i, n in enumerate(contact_names)}
+    perm = [contact_prefix_to_idx[_leg_prefix(n)] for n in sensor_primary_names]
+    foot_contacts = data["foot_contacts"][:, perm]
+
+    assert foot_contacts.shape[0] == command.motion.time_step_total, (
+      "foot_contacts row count doesn't match the rest of the motion -- "
+    )
+    self.foot_contacts = torch.tensor(
+      foot_contacts, dtype=torch.float32, device=env.device
+    )
+
+  def __call__(
+    self, env: ManagerBasedRlEnv, command_name: str, sensor_name: str
+  ) -> torch.Tensor:
+    command = cast(MotionCommand, env.command_manager.get_term(command_name))
+    sensor: ContactSensor = env.scene[sensor_name]
+    assert sensor.data.found is not None
+
+    ref_contact = self.foot_contacts[command.time_steps]  # [B, F]
+    actual_contact = (sensor.data.found > 0).float()  # [B, F]
+
+    false_contact = actual_contact * (1.0 - ref_contact)  # foot down, shouldn't be
+    missed_contact = (1.0 - actual_contact) * ref_contact  # foot up, should be down
+    penalty = 2.0 * false_contact + 0.5 * missed_contact
+    return -penalty.mean(dim=-1)

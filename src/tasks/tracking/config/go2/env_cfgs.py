@@ -5,11 +5,16 @@ from src.assets.robots.unitree_go2.go2_constants import (
   get_go2_robot_cfg,
 )
 from mjlab.envs import ManagerBasedRlEnvCfg
+from mjlab.envs.mdp import dr
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.observation_manager import ObservationGroupCfg
+from mjlab.managers.event_manager import EventTermCfg
+from mjlab.managers.reward_manager import RewardTermCfg
+from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
 from mjlab.tasks.tracking.mdp import MotionCommandCfg
 
+import src.tasks.tracking.mdp as mdp
 from src.tasks.tracking.tracking_env_cfg import make_tracking_env_cfg
 
 
@@ -31,7 +36,21 @@ def unitree_go2_flat_tracking_env_cfg(
     num_slots=1,
     history_length=4,
   )
-  cfg.scene.sensors = (self_collision_cfg,)
+
+  feet_ground_cfg = ContactSensorCfg(
+    name="feet_ground_contact",
+    primary=ContactMatch(
+      mode="geom",
+      pattern=("FL_foot_collision", "FR_foot_collision", "RL_foot_collision", "RR_foot_collision"),
+      entity="robot",
+    ),
+    secondary=ContactMatch(mode="body", pattern="terrain"),
+    fields=("found",),
+    reduce="maxforce",
+    num_slots=1,
+  )
+
+  cfg.scene.sensors = (self_collision_cfg, feet_ground_cfg)
 
   joint_pos_action = cfg.actions["joint_pos"]
   assert isinstance(joint_pos_action, JointPositionActionCfg)
@@ -61,6 +80,48 @@ def unitree_go2_flat_tracking_env_cfg(
   ].geom_names = r"^(FL|FR|RL|RR)_foot_collision$"
   cfg.events["base_com"].params["asset_cfg"].body_names = ("base_link",)
 
+  cfg.events["joint_friction"] = EventTermCfg(
+    mode="startup",
+    func=dr.joint_friction,
+    params={
+      "asset_cfg": SceneEntityCfg("robot"),
+      "operation": "abs",
+      "ranges": {
+        ".*hip_joint": (0.1454, 0.1469),
+        ".*thigh_joint": (0.1206, 0.1228),
+        ".*calf_joint": (1.4809, 1.4868),
+      },
+    },
+  )
+
+  cfg.events["joint_damping"] = EventTermCfg(
+    mode="startup",
+    func=dr.joint_damping,
+    params={
+      "asset_cfg": SceneEntityCfg("robot"),
+      "operation": "abs",
+      "ranges": {
+        ".*hip_joint": (0.0269, 0.0295),
+        ".*thigh_joint": (0.0389, 0.0423),
+        ".*calf_joint": (0.0247, 0.0323),
+      },
+    },
+  )
+
+  cfg.events["joint_armature"] = EventTermCfg(
+    mode="startup",
+    func=dr.joint_armature,
+    params={
+      "asset_cfg": SceneEntityCfg("robot"),
+      "operation": "abs",
+      "ranges": {
+        ".*hip_joint": (0.0001, 0.0008),      # unidentifiable (point est. 0.0003985) -- wide
+        ".*thigh_joint": (0.0038277, 0.0042258),  # identifiable -- tight, from CI
+        ".*calf_joint": (0.0183563, 0.0187847),   # identifiable -- tight, from CI
+      },
+    },
+  )
+
   cfg.terminations["ee_body_pos"].params["body_names"] = (
     "FL_calf",
     "FR_calf",
@@ -69,6 +130,12 @@ def unitree_go2_flat_tracking_env_cfg(
   )
 
   cfg.viewer.body_name = "base_link"
+
+  cfg.rewards["motion_contact_tracking"] = RewardTermCfg(
+    func=mdp.motion_contact_tracking,
+    weight=2.0,  # tune this
+    params={"command_name": "motion", "sensor_name": "feet_ground_contact"},
+  )
 
   # Modify observations if we don't have state estimation.
   if not has_state_estimation:

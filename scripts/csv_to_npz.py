@@ -64,7 +64,8 @@ class MotionLoader:
     self.motion_base_rots_input = self.motion_base_rots_input[
       :, [3, 0, 1, 2]
     ]  # convert to wxyz
-    self.motion_dof_poss_input = motion[:, 7:]
+    self.motion_dof_poss_input = motion[:, 7:19]
+    self.motion_foot_contacts_input = motion[:, 19:23]
 
     self.input_frames = motion.shape[0]
     self.duration = (self.input_frames - 1) * self.input_dt
@@ -91,6 +92,8 @@ class MotionLoader:
       self.motion_dof_poss_input[index_1],
       blend.unsqueeze(1),
     )
+    nearest_idx = torch.where(blend < 0.5, index_0, index_1)
+    self.motion_foot_contacts = self.motion_foot_contacts_input[nearest_idx]
     print(
       f"Motion interpolated, input frames: {self.input_frames}, "
       f"input fps: {self.input_fps}, "
@@ -174,6 +177,7 @@ class MotionLoader:
       self.motion_base_ang_vels[self.current_idx : self.current_idx + 1],
       self.motion_dof_poss[self.current_idx : self.current_idx + 1],
       self.motion_dof_vels[self.current_idx : self.current_idx + 1],
+      self.motion_foot_contacts[self.current_idx : self.current_idx + 1],
     )
     self.current_idx += 1
     reset_flag = False
@@ -182,6 +186,7 @@ class MotionLoader:
       reset_flag = True
     return state, reset_flag
 
+FOOT_CONTACT_NAMES = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
 
 def run_sim(
   sim: Simulation,
@@ -214,6 +219,7 @@ def run_sim(
     "body_quat_w": [],
     "body_lin_vel_w": [],
     "body_ang_vel_w": [],
+    "foot_contacts": [],
   }
   file_saved = False
 
@@ -243,6 +249,7 @@ def run_sim(
         motion_base_ang_vel,
         motion_dof_pos,
         motion_dof_vel,
+        motion_foot_contacts,
       ),
       reset_flag,
     ) = motion.get_next_state()
@@ -278,6 +285,9 @@ def run_sim(
       log["body_ang_vel_w"].append(
         robot.data.body_link_ang_vel_w[0, :].cpu().numpy().copy()
       )
+      log["foot_contacts"].append(
+        motion_foot_contacts[0].cpu().numpy().copy()
+      )
 
       torch.testing.assert_close(
         robot.data.body_link_lin_vel_w[0, 0], motion_base_lin_vel[0]
@@ -305,8 +315,10 @@ def run_sim(
           "body_quat_w",
           "body_lin_vel_w",
           "body_ang_vel_w",
+          "foot_contacts",
         ):
           log[k] = np.stack(log[k], axis=0)
+        log["foot_contact_names"] = np.array(FOOT_CONTACT_NAMES)
         np.savez(output_path, **log)  # type: ignore[arg-type]
 
 
