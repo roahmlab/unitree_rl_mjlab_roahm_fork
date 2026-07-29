@@ -149,6 +149,34 @@ def unitree_go2_flat_tracking_env_cfg(
     "RR_calf",
   )
 
+  cfg.terminations["anchor_pos"].params["threshold"] = 0.20
+  cfg.terminations["ee_body_pos"].params["threshold"] = 0.20
+
+  cfg.curriculum["anneal_anchor_pos_threshold"] = CurriculumTermCfg(
+    func=mdp.termination_param_curriculum,
+    params={
+      "termination_name": "anchor_pos",
+      "param_name": "threshold",
+      "stages": [
+        {"step": 0, "value": 0.20},
+        {"step": 2000, "value": 0.12},
+        {"step": 5000, "value": 0.08},
+      ],
+    },
+  )
+  cfg.curriculum["anneal_ee_body_pos_threshold"] = CurriculumTermCfg(
+    func=mdp.termination_param_curriculum,
+    params={
+      "termination_name": "ee_body_pos",
+      "param_name": "threshold",
+      "stages": [
+        {"step": 0, "value": 0.20},
+        {"step": 2000, "value": 0.12},
+        {"step": 5000, "value": 0.08},
+      ],
+    },
+  )
+
   cfg.viewer.body_name = "base_link"
 
   cfg.rewards["motion_contact_tracking"] = RewardTermCfg(
