@@ -196,3 +196,67 @@ class motion_contact_tracking:
     missed_contact = (1.0 - actual_contact) * ref_contact  # foot up, should be down
     penalty = 2.0 * false_contact + 0.5 * missed_contact
     return -penalty.mean(dim=-1)
+
+class swing_leg_ground_clearance:
+  """Penalize the thigh/calf links dropping below a height margin during
+  their reference-scheduled swing phase (not just the foot contact point) --
+  assumes flat terrain at world z=0.
+  """
+
+  def __init__(self, cfg, env: ManagerBasedRlEnv):
+    command = cast(
+      MotionCommand, env.command_manager.get_term(cfg.params["command_name"])
+    )
+    sensor: ContactSensor = env.scene[cfg.params["sensor_name"]]
+
+    data = np.load(command.cfg.motion_file)
+    if "foot_contacts" not in data or "foot_contact_names" not in data:
+      raise KeyError(
+        "Motion file is missing 'foot_contacts'/'foot_contact_names'."
+      )
+
+    sensor_primary_names = list(dict.fromkeys(
+      slot.primary_name for slot in sensor._slots
+    ))
+    contact_names = [str(n) for n in data["foot_contact_names"]]
+    contact_prefix_to_idx = {_leg_prefix(n): i for i, n in enumerate(contact_names)}
+    perm = [contact_prefix_to_idx[_leg_prefix(n)] for n in sensor_primary_names]
+    foot_contacts = data["foot_contacts"][:, perm]
+
+    assert foot_contacts.shape[0] == command.motion.time_step_total
+    self.foot_contacts = torch.tensor(
+      foot_contacts, dtype=torch.float32, device=env.device
+    )
+    # this array's columns are in sensor_primary_names / leg order:
+    self.leg_order = [_leg_prefix(n) for n in sensor_primary_names]
+
+    # For each leg, which entries of command.cfg.body_names are its thigh/calf.
+    self.leg_link_indexes: dict[str, list[int]] = {}
+    for leg in ("FL", "FR", "RL", "RR"):
+      self.leg_link_indexes[leg] = [
+        i for i, name in enumerate(command.cfg.body_names)
+        if name.startswith(leg) and ("thigh" in name or "calf" in name)
+      ]
+
+  def __call__(
+    self,
+    env: ManagerBasedRlEnv,
+    command_name: str,
+    sensor_name: str,
+    clearance: float,
+  ) -> torch.Tensor:
+    command = cast(MotionCommand, env.command_manager.get_term(command_name))
+    ref_contact = self.foot_contacts[command.time_steps]  # [B, 4]
+    swing = 1.0 - ref_contact
+
+    total = torch.zeros(env.num_envs, device=env.device)
+    for col, leg in enumerate(self.leg_order):
+      idx = self.leg_link_indexes[leg]
+      if not idx:
+        continue
+      z = command.robot_body_pos_w[:, idx, 2]           # [B, links_this_leg]
+      deficit = torch.clamp(clearance - z, min=0.0)      # >0 only when too low
+      normalized = (deficit / clearance) ** 2   # 0 at/above clearance, 1.0 at full skim (z=0)
+      total += swing[:, col] * torch.sum(normalized, dim=-1)
+      
+    return total

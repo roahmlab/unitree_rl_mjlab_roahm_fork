@@ -7,6 +7,7 @@ from src.assets.robots.unitree_go2.go2_constants import (
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp import dr
 from mjlab.envs.mdp.actions import JointPositionActionCfg
+from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.managers.observation_manager import ObservationGroupCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
@@ -122,6 +123,25 @@ def unitree_go2_flat_tracking_env_cfg(
     },
   )
 
+  cfg.events["joint_bias_torque"] = EventTermCfg(
+    mode="reset",
+    func=mdp.joint_bias_torque,
+    params={
+      "asset_cfg": SceneEntityCfg("robot"),
+      "bias_ranges": {
+        ".*hip_joint": (-0.3, 0.3),          # unidentifiable -- wide, centered near 0
+        ".*thigh_joint": (-0.2, 0.2),        # unidentifiable -- wide, centered near 0
+        ".*calf_joint": (-0.1152, -0.1098),  # identifiable -- tight, from CI
+      },
+    },
+  )
+
+  cfg.events["motor_strength_scale"] = EventTermCfg(
+    mode="reset",
+    func=mdp.motor_strength_scale,
+    params={"asset_cfg": SceneEntityCfg("robot"), "scale_range": (0.8, 1.0)},
+  )
+
   cfg.terminations["ee_body_pos"].params["body_names"] = (
     "FL_calf",
     "FR_calf",
@@ -135,6 +155,29 @@ def unitree_go2_flat_tracking_env_cfg(
     func=mdp.motion_contact_tracking,
     weight=2.0,  # tune this
     params={"command_name": "motion", "sensor_name": "feet_ground_contact"},
+  )
+
+  cfg.rewards["swing_leg_ground_clearance"] = RewardTermCfg(
+    func=mdp.swing_leg_ground_clearance,
+    weight=-2.0,  # tune -- start moderate, increase if calves still skim
+    params={"command_name": "motion", "sensor_name": "feet_ground_contact", "clearance": 0.06},
+  )
+
+  cfg.curriculum["anneal_body_pos_std"] = CurriculumTermCfg(
+    func=mdp.param_curriculum,
+    params={
+      "reward_name": "motion_body_pos",
+      "param_name": "std",
+      "stages": [{"step": 0, "value": 0.3}, {"step": 2000, "value": 0.15}, {"step": 5000, "value": 0.1}],
+    },
+  )
+  cfg.curriculum["anneal_global_root_pos_std"] = CurriculumTermCfg(
+    func=mdp.param_curriculum,
+    params={
+      "reward_name": "motion_global_root_pos",
+      "param_name": "std",
+      "stages": [{"step": 0, "value": 0.3}, {"step": 2000, "value": 0.15}, {"step": 5000, "value": 0.1}],
+    },
   )
 
   # Modify observations if we don't have state estimation.

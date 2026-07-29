@@ -6,6 +6,7 @@ import mujoco
 
 from src import SRC_PATH
 from mjlab.actuator import BuiltinPositionActuatorCfg
+from mjlab.actuator import DcMotorActuatorCfg
 from mjlab.entity import EntityArticulationInfoCfg, EntityCfg
 from mjlab.utils.actuator import ElectricActuator, reflected_inertia
 from mjlab.utils.os import update_assets
@@ -37,33 +38,63 @@ def get_spec() -> mujoco.MjSpec:
 # Actuator config.
 ##
 
-GO2_ACTUATOR_HIP = BuiltinPositionActuatorCfg(
-  target_names_expr=(
-    ".*hip_.*",
-  ),
+from mjlab.actuator import DcMotorActuatorCfg
+
+GO2_ACTUATOR_HIP = DcMotorActuatorCfg(
+  target_names_expr=(".*hip_.*",),
   stiffness=20.0,
   damping=1.0,
   effort_limit=23.5,
+  saturation_effort=23.5,   # peak/stall torque -- matches Unitree's published 23.7 Nm
+  velocity_limit=30.0,      # no-load speed, rad/s -- Unitree's published figure
   armature=0.01,
 )
-GO2_ACTUATOR_THIGH = BuiltinPositionActuatorCfg(
-  target_names_expr=(
-    ".*thigh_.*",
-  ),
+GO2_ACTUATOR_THIGH = DcMotorActuatorCfg(
+  target_names_expr=(".*thigh_.*",),
   stiffness=20.0,
   damping=1.0,
   effort_limit=23.5,
+  saturation_effort=23.5,
+  velocity_limit=30.0,
   armature=0.01,
 )
-GO2_ACTUATOR_CALF = BuiltinPositionActuatorCfg(
-  target_names_expr=(
-    ".*calf_.*",
-  ),
+GO2_ACTUATOR_CALF = DcMotorActuatorCfg(
+  target_names_expr=(".*calf_.*",),
   stiffness=40.0,
   damping=2.0,
-  effort_limit=45,
+  effort_limit=45.0,
+  saturation_effort=45.0,
+  velocity_limit=30.0,   # UNVERIFIED for the calf's higher-torque motor -- check the manual or your own v data
   armature=0.02,
 )
+
+# GO2_ACTUATOR_HIP = BuiltinPositionActuatorCfg(
+#   target_names_expr=(
+#     ".*hip_.*",
+#   ),
+#   stiffness=20.0,
+#   damping=1.0,
+#   effort_limit=23.5,
+#   armature=0.01,
+# )
+# GO2_ACTUATOR_THIGH = BuiltinPositionActuatorCfg(
+#   target_names_expr=(
+#     ".*thigh_.*",
+#   ),
+#   stiffness=20.0,
+#   damping=1.0,
+#   effort_limit=23.5,
+#   armature=0.01,
+# )
+# GO2_ACTUATOR_CALF = BuiltinPositionActuatorCfg(
+#   target_names_expr=(
+#     ".*calf_.*",
+#   ),
+#   stiffness=40.0,
+#   damping=2.0,
+#   effort_limit=45,
+#   armature=0.02,
+# )
 
 ##
 # Keyframes.
@@ -140,7 +171,7 @@ def get_go2_robot_cfg() -> EntityCfg:
 
 GO2_ACTION_SCALE: dict[str, float] = {}
 for a in GO2_ARTICULATION.actuators:
-  assert isinstance(a, BuiltinPositionActuatorCfg)
+  assert isinstance(a, DcMotorActuatorCfg)
   e = a.effort_limit
   s = a.stiffness
   names = a.target_names_expr
