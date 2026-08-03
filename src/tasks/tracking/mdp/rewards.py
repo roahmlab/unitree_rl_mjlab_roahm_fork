@@ -260,3 +260,45 @@ class swing_leg_ground_clearance:
       total += swing[:, col] * torch.sum(normalized, dim=-1)
       
     return total
+
+def motion_joint_position_error_exp(
+    env: ManagerBasedRlEnv,
+    command_name: str,
+    std: float,
+) -> torch.Tensor:
+    motion = env.command_manager.get_term(command_name)
+
+    error = motion.joint_pos - motion.robot_joint_pos
+
+    return torch.exp(
+        -(error.square().sum(dim=-1)) / (std**2)
+    )
+
+def motion_joint_velocity_error_exp(
+    env: ManagerBasedRlEnv,
+    command_name: str,
+    std: float,
+) -> torch.Tensor:
+    motion = env.command_manager.get_term(command_name)
+
+    error = motion.joint_vel - motion.robot_joint_vel
+
+    return torch.exp(
+        -(error.square().sum(dim=-1)) / (std**2)
+    )
+
+def motion_anchor_linear_velocity_error_exp(
+    env: ManagerBasedRlEnv,
+    command_name: str,
+    std: float,
+) -> torch.Tensor:
+    motion = env.command_manager.get_term(command_name)
+
+    error = (
+        motion.anchor_lin_vel_w
+        - motion.robot_anchor_lin_vel_w
+    )
+
+    return torch.exp(
+        -(error.square().sum(dim=-1)) / (std**2)
+    )

@@ -28,8 +28,8 @@ FSM:
     transitions:
       Passive: LT + B.on_pressed
 
-    motion_file: config/policy/mimic/v3/params/sys_id_hopscotch_new.npz
-    policy_dir: config/policy/mimic/v3/
+    motion_file: config/policy/mimic/v4/params/sys_id_hopscotch_new.npz
+    policy_dir: config/policy/mimic/v4/
     time_start: 0.0
     time_end: 1000.0
     end_state: Passive

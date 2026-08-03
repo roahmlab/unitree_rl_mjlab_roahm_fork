@@ -100,6 +100,20 @@ State_Mimic::State_Mimic(int state_mode, std::string state_string)
     );
     env->alg = std::make_unique<isaaclab::OrtRunner>(policy_dir / "exported" / "policy.onnx");
 
+    auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::ostringstream log_name;
+    log_name << "mimic_log_" << now << ".csv";
+    std::filesystem::path log_path = param::proj_dir / "logs" / log_name.str();
+    std::filesystem::create_directories(log_path.parent_path());
+    log_file_.open(log_path);
+    log_file_ << "t";
+    for (int i = 0; i < 12; i++) {
+        log_file_ << ",q_actual_" << i << ",dq_actual_" << i << ",tau_est_" << i
+                   << ",q_cmd_" << i << ",q_ref_" << i << ",dq_ref_" << i;
+    }
+    log_file_ << "\n";
+    spdlog::info("Logging joint tracking to '{}'", log_path.string());
+
     const auto & joy = FSMState::lowstate->joystick;
     this->registered_checks.emplace_back(
         std::make_pair(
@@ -150,6 +164,7 @@ void State_Mimic::enter()
             env->robot->update();
             motion->update(env->episode_length * env->step_dt + time_range_[0]);
             env->step();
+            log_step(env->episode_length * env->step_dt + time_range_[0]);
 
             // Sleep
             std::this_thread::sleep_until(sleepTill);
@@ -165,4 +180,29 @@ void State_Mimic::run()
     for(int i(0); i < env->robot->data.joint_ids_map.size(); i++) {
         lowcmd->msg_.motor_cmd()[env->robot->data.joint_ids_map[i]].q() = action[i];
     }
+}
+
+void State_Mimic::log_step(float t)
+{
+    if (!log_file_.is_open()) return;
+
+    using G1Type = unitree::BaseArticulation<LowState_t::SharedPtr>;
+    G1Type* robot = dynamic_cast<G1Type*>(env->robot.get());
+    auto & motors = robot->lowstate->msg_.motor_state();
+    auto action = env->action_manager->processed_actions();
+    auto ref_q = motion->joint_pos();
+    auto ref_dq = motion->joint_vel();
+    auto & joint_ids_map = env->robot->data.joint_ids_map;
+
+    log_file_ << t;
+    for (int i = 0; i < 12; i++) {
+        int real_idx = joint_ids_map[i];
+        log_file_ << "," << motors[real_idx].q()
+                   << "," << motors[real_idx].dq()
+                   << "," << motors[real_idx].tau_est()
+                   << "," << action[i]
+                   << "," << ref_q[i]
+                   << "," << ref_dq[i];
+    }
+    log_file_ << "\n";
 }

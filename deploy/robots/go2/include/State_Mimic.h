@@ -2,6 +2,8 @@
 
 #include "FSM/State_RLBase.h"
 #include <cnpy.h>
+#include <fstream>
+#include <chrono>
 
 
 class State_Mimic : public FSMState
@@ -17,18 +19,25 @@ public:
         if (policy_thread.joinable()) {
             policy_thread.join();
         }
+        if (log_file_.is_open()) {
+            log_file_.close();
+        }
     }
 
     class MotionLoader_;
 
     static std::shared_ptr<MotionLoader_> motion; // for obs computation
 private:
+    void log_step(float t);
+
     std::unique_ptr<isaaclab::ManagerBasedRLEnv> env;
     std::shared_ptr<MotionLoader_> motion_; // for saving
 
     std::thread policy_thread;
     bool policy_thread_running = false;
     std::array<float, 2> time_range_;
+
+    std::ofstream log_file_;
 };
 
 

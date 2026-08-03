@@ -191,12 +191,30 @@ def unitree_go2_flat_tracking_env_cfg(
     params={"command_name": "motion", "sensor_name": "feet_ground_contact", "clearance": 0.06},
   )
 
+  cfg.rewards["motion_joint_pos"] = RewardTermCfg(
+    func=mdp.motion_joint_position_error_exp,
+    weight=1.0,
+    params={"command_name": "motion", "std": 0.25,},
+  )
+
+  cfg.rewards["motion_joint_vel"] = RewardTermCfg(
+    func=mdp.motion_joint_velocity_error_exp,
+    weight=0.5,
+    params={"command_name": "motion", "std": 2.0,},
+  )
+
+  cfg.rewards["motion_root_lin_vel"] = RewardTermCfg(
+    func=mdp.motion_anchor_linear_velocity_error_exp,
+    weight=2.0,
+    params={"command_name": "motion", "std": 0.5,},
+  )
+
   cfg.curriculum["anneal_body_pos_std"] = CurriculumTermCfg(
     func=mdp.param_curriculum,
     params={
       "reward_name": "motion_body_pos",
       "param_name": "std",
-      "stages": [{"step": 0, "value": 0.3}, {"step": 2000, "value": 0.15}, {"step": 5000, "value": 0.1}],
+      "stages": [{"step": 0, "value": 0.3}, {"step": 2000, "value": 0.15}, {"step": 5000, "value": 0.1}, {"step": 5000, "value": 0.05}],
     },
   )
   cfg.curriculum["anneal_global_root_pos_std"] = CurriculumTermCfg(
@@ -204,7 +222,7 @@ def unitree_go2_flat_tracking_env_cfg(
     params={
       "reward_name": "motion_global_root_pos",
       "param_name": "std",
-      "stages": [{"step": 0, "value": 0.3}, {"step": 2000, "value": 0.15}, {"step": 5000, "value": 0.1}],
+      "stages": [{"step": 0, "value": 0.3}, {"step": 2000, "value": 0.15}, {"step": 5000, "value": 0.1}, {"step": 5000, "value": 0.05}],
     },
   )
 
