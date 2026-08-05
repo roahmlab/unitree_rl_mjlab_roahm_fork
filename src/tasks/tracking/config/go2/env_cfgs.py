@@ -139,8 +139,31 @@ def unitree_go2_flat_tracking_env_cfg(
   cfg.events["motor_strength_scale"] = EventTermCfg(
     mode="reset",
     func=mdp.motor_strength_scale,
-    params={"asset_cfg": SceneEntityCfg("robot"), "scale_range": (0.8, 1.0)},
+    params={"asset_cfg": SceneEntityCfg("robot"), "scale_range": (0.9, 1.0)},
   )
+
+  cfg.events["base_mass_inertia"] = EventTermCfg(
+    mode="startup",
+    func=dr.pseudo_inertia,
+    params={
+      "asset_cfg": SceneEntityCfg("robot", body_names="base_link"),
+      "alpha_range": (-0.02, 0.10),
+    },
+  )
+  cfg.events["leg_mass_inertia"] = EventTermCfg(
+    mode="startup",
+    func=dr.pseudo_inertia,
+    params={
+      "asset_cfg": SceneEntityCfg("robot", body_names=".*(thigh|calf).*"),
+      "alpha_range": (-0.02, 0.05),
+    },
+  )
+
+  for name in ("joint_pos", "joint_vel", "base_ang_vel", "motion_anchor_ori_b"):
+    term = cfg.observations["actor"].terms[name]
+    term.delay_min_lag = 1
+    term.delay_max_lag = 2
+    term.delay_hold_prob = 0.9
 
   cfg.terminations["ee_body_pos"].params["body_names"] = (
     "FL_calf",
@@ -187,8 +210,8 @@ def unitree_go2_flat_tracking_env_cfg(
 
   cfg.rewards["swing_leg_ground_clearance"] = RewardTermCfg(
     func=mdp.swing_leg_ground_clearance,
-    weight=-2.0,  # tune -- start moderate, increase if calves still skim
-    params={"command_name": "motion", "sensor_name": "feet_ground_contact", "clearance": 0.06},
+    weight=-2.0,
+    params={"command_name": "motion", "sensor_name": "feet_ground_contact", "margin": 0.02},
   )
 
   cfg.rewards["motion_joint_pos"] = RewardTermCfg(

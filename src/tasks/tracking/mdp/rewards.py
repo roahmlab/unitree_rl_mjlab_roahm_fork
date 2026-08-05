@@ -243,10 +243,10 @@ class swing_leg_ground_clearance:
     env: ManagerBasedRlEnv,
     command_name: str,
     sensor_name: str,
-    clearance: float,
+    margin: float,
   ) -> torch.Tensor:
     command = cast(MotionCommand, env.command_manager.get_term(command_name))
-    ref_contact = self.foot_contacts[command.time_steps]  # [B, 4]
+    ref_contact = self.foot_contacts[command.time_steps]
     swing = 1.0 - ref_contact
 
     total = torch.zeros(env.num_envs, device=env.device)
@@ -254,11 +254,12 @@ class swing_leg_ground_clearance:
       idx = self.leg_link_indexes[leg]
       if not idx:
         continue
-      z = command.robot_body_pos_w[:, idx, 2]           # [B, links_this_leg]
-      deficit = torch.clamp(clearance - z, min=0.0)      # >0 only when too low
-      normalized = (deficit / clearance) ** 2   # 0 at/above clearance, 1.0 at full skim (z=0)
+      z_actual = command.robot_body_pos_w[:, idx, 2]
+      z_ref = command.body_pos_w[:, idx, 2]
+      target = torch.clamp(z_ref - margin, min=0.0)   # reference height, backed off by a margin
+      deficit = torch.clamp(target - z_actual, min=0.0)
+      normalized = (deficit / max(margin, 1e-3)) ** 2
       total += swing[:, col] * torch.sum(normalized, dim=-1)
-      
     return total
 
 def motion_joint_position_error_exp(
