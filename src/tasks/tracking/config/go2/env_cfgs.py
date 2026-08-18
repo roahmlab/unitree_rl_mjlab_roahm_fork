@@ -90,7 +90,7 @@ def unitree_go2_flat_tracking_env_cfg(
       "ranges": {
         ".*hip_joint": (0.1454, 0.1469),
         ".*thigh_joint": (0.1206, 0.1228),
-        ".*calf_joint": (1.4809, 1.4868),
+        ".*calf_joint": (0.890, 2.077),
       },
     },
   )
@@ -118,7 +118,7 @@ def unitree_go2_flat_tracking_env_cfg(
       "ranges": {
         ".*hip_joint": (0.0001, 0.0008),      # unidentifiable (point est. 0.0003985) -- wide
         ".*thigh_joint": (0.0038277, 0.0042258),  # identifiable -- tight, from CI
-        ".*calf_joint": (0.0183563, 0.0187847),   # identifiable -- tight, from CI
+        ".*calf_joint": (0.01300, 0.02414),   # identifiable -- tight, from CI
       },
     },
   )
@@ -139,7 +139,7 @@ def unitree_go2_flat_tracking_env_cfg(
   cfg.events["motor_strength_scale"] = EventTermCfg(
     mode="reset",
     func=mdp.motor_strength_scale,
-    params={"asset_cfg": SceneEntityCfg("robot"), "scale_range": (0.9, 1.0)},
+    params={"asset_cfg": SceneEntityCfg("robot"), "scale_range": (0.85, 1.0)},
   )
 
   cfg.events["base_mass_inertia"] = EventTermCfg(
@@ -204,14 +204,14 @@ def unitree_go2_flat_tracking_env_cfg(
 
   cfg.rewards["motion_contact_tracking"] = RewardTermCfg(
     func=mdp.motion_contact_tracking,
-    weight=2.0,  # tune this
+    weight=5.0,  # tune this
     params={"command_name": "motion", "sensor_name": "feet_ground_contact"},
   )
 
   cfg.rewards["swing_leg_ground_clearance"] = RewardTermCfg(
     func=mdp.swing_leg_ground_clearance,
-    weight=-2.0,
-    params={"command_name": "motion", "sensor_name": "feet_ground_contact", "margin": 0.02},
+    weight=-5.0,
+    params={"command_name": "motion", "sensor_name": "feet_ground_contact", "margin": 0.01},
   )
 
   cfg.rewards["motion_joint_pos"] = RewardTermCfg(
@@ -228,7 +228,7 @@ def unitree_go2_flat_tracking_env_cfg(
 
   cfg.rewards["motion_root_lin_vel"] = RewardTermCfg(
     func=mdp.motion_anchor_linear_velocity_error_exp,
-    weight=2.0,
+    weight=3.0,
     params={"command_name": "motion", "std": 0.5,},
   )
 
