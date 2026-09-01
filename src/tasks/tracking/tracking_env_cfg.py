@@ -198,7 +198,7 @@ def make_tracking_env_cfg() -> ManagerBasedRlEnvCfg:
       params={
         "asset_cfg": SceneEntityCfg("robot", geom_names=()),  # Set per-robot.
         "operation": "abs",
-        "ranges": (0.3, 1.2),
+        "ranges": (0.6, 1.0),
         "shared_random": True,  # All foot geoms share the same friction.
       },
     ),
@@ -216,7 +216,7 @@ def make_tracking_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
     "motion_global_root_ori": RewardTermCfg(
       func=mdp.motion_global_anchor_orientation_error_exp,
-      weight=0.5,
+      weight=2.5,
       params={"command_name": "motion", "std": 0.4},
     ),
     "motion_body_pos": RewardTermCfg(

@@ -12,8 +12,8 @@ JOINT_ORDER = [
 ]
 FOOT_ORDER = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
 
-npz_fp = os.path.join(os.path.dirname(__file__), "sys_id_hopscotch.npz")
-output_fp = os.path.join(os.path.dirname(__file__), "sys_id_hopscotch.csv")
+npz_fp = os.path.join(os.path.dirname(__file__), "cartwheel.npz")
+output_fp = os.path.join(os.path.dirname(__file__), "cartwheel.csv")
 
 data = np.load(npz_fp)
 q = data["q"]                        # [T, 18]
@@ -29,7 +29,7 @@ foot_col_idx = [feet.index(name) for name in FOOT_ORDER]
 T = q.shape[0]
 out = np.zeros((T, 23), dtype=np.float64)
 out[:, 0:3] = q[:, 0:3]                                        # base position
-out[:, 3:7] = Rotation.from_euler("XYZ", q[:, 3:6]).as_quat()   # base Euler -> quat xyzw
+out[:, 3:7] = Rotation.from_euler("YXZ", q[:, 3:6]).as_quat()   # base Euler -> quat xyzw
 out[:, 7:19] = q[:, joint_col_idx]                              # 12 joint positions
 out[:, 19:23] = contact[:, foot_col_idx].astype(np.float64)     # 4 foot contact flags
 

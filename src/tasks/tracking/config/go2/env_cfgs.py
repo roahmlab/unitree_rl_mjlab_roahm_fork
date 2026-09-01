@@ -12,11 +12,14 @@ from mjlab.managers.observation_manager import ObservationGroupCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
+from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
 from mjlab.tasks.tracking.mdp import MotionCommandCfg
 
 import src.tasks.tracking.mdp as mdp
 from src.tasks.tracking.tracking_env_cfg import make_tracking_env_cfg
+
+import torch
 
 
 def unitree_go2_flat_tracking_env_cfg(
@@ -232,12 +235,23 @@ def unitree_go2_flat_tracking_env_cfg(
     params={"command_name": "motion", "std": 0.5,},
   )
 
+  NOSE_RADIUS = 0.047
+  cfg.terminations["nose_ground_contact"] = TerminationTermCfg(
+    func=lambda env, **kw: mdp.nose_ground_clearance()(env, **kw) > 0,
+    params={"asset_cfg": SceneEntityCfg("robot"), "min_height": NOSE_RADIUS + 0.02},   # ≈0.067 -- terminate just before actual surface contact
+  )
+  cfg.rewards["nose_ground_clearance"] = RewardTermCfg(
+    func=lambda env, **kw: torch.clamp(mdp.nose_ground_clearance()(env, **kw), min=0.0),
+    weight=-5.0,
+    params={"asset_cfg": SceneEntityCfg("robot"), "min_height": NOSE_RADIUS + 0.08},   # ≈0.127 -- reward starts pushing away well before it's an actual safety issue
+  )
+
   cfg.curriculum["anneal_body_pos_std"] = CurriculumTermCfg(
     func=mdp.param_curriculum,
     params={
       "reward_name": "motion_body_pos",
       "param_name": "std",
-      "stages": [{"step": 0, "value": 0.3}, {"step": 2000, "value": 0.15}, {"step": 5000, "value": 0.1}, {"step": 5000, "value": 0.05}],
+      "stages": [{"step": 0, "value": 0.3}, {"step": 2000, "value": 0.15}, {"step": 5000, "value": 0.1}, {"step": 10000, "value": 0.05}],
     },
   )
   cfg.curriculum["anneal_global_root_pos_std"] = CurriculumTermCfg(
@@ -245,7 +259,7 @@ def unitree_go2_flat_tracking_env_cfg(
     params={
       "reward_name": "motion_global_root_pos",
       "param_name": "std",
-      "stages": [{"step": 0, "value": 0.3}, {"step": 2000, "value": 0.15}, {"step": 5000, "value": 0.1}, {"step": 5000, "value": 0.05}],
+      "stages": [{"step": 0, "value": 0.3}, {"step": 2000, "value": 0.15}, {"step": 5000, "value": 0.1}, {"step": 10000, "value": 0.05}],
     },
   )
 

@@ -303,3 +303,27 @@ def motion_anchor_linear_velocity_error_exp(
     return torch.exp(
         -(error.square().sum(dim=-1)) / (std**2)
     )
+
+def _quat_apply(quat_wxyz: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
+  """Rotate vec (..., 3) by quat_wxyz (..., 4), scalar-first."""
+  w, x, y, z = quat_wxyz.unbind(-1)
+  qvec = torch.stack([x, y, z], dim=-1)
+  uv = torch.cross(qvec, vec, dim=-1)
+  uuv = torch.cross(qvec, uv, dim=-1)
+  return vec + 2 * (w.unsqueeze(-1) * uv + uuv)
+
+class nose_ground_clearance:
+  """Penalize/terminate the front sensor-housing bump (base3_collision, a
+  fixed offset on base_link -- go2.xml has no separate head body) getting
+  too close to the ground."""
+
+  NOSE_OFFSET_LOCAL = (0.293, 0.0, -0.06)  # base3_collision pos, from go2.xml
+
+  def __call__(self, env, asset_cfg, min_height: float) -> torch.Tensor:
+    asset = env.scene[asset_cfg.name]
+    base_pos = asset.data.body_link_pos_w[:, 0]    # base_link, index 0
+    base_quat = asset.data.body_link_quat_w[:, 0]
+    offset = torch.tensor(self.NOSE_OFFSET_LOCAL, device=env.device)
+    world_offset = _quat_apply(base_quat, offset.expand(base_pos.shape[0], -1))
+    nose_z = (base_pos + world_offset)[:, 2]
+    return min_height - nose_z    # reward version: clamp(..., min=0) below; termination: compare > 0
