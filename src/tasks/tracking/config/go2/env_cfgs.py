@@ -176,7 +176,7 @@ def unitree_go2_flat_tracking_env_cfg(
   )
 
   cfg.terminations["anchor_pos"].params["threshold"] = 0.20
-  cfg.terminations["ee_body_pos"].params["threshold"] = 0.20
+  # cfg.terminations["ee_body_pos"].params["threshold"] = 0.20
 
   cfg.curriculum["anneal_anchor_pos_threshold"] = CurriculumTermCfg(
     func=mdp.termination_param_curriculum,
@@ -211,11 +211,11 @@ def unitree_go2_flat_tracking_env_cfg(
     params={"command_name": "motion", "sensor_name": "feet_ground_contact"},
   )
 
-  cfg.rewards["swing_leg_ground_clearance"] = RewardTermCfg(
-    func=mdp.swing_leg_ground_clearance,
-    weight=-5.0,
-    params={"command_name": "motion", "sensor_name": "feet_ground_contact", "margin": 0.01},
-  )
+  # cfg.rewards["swing_leg_ground_clearance"] = RewardTermCfg(
+  #   func=mdp.swing_leg_ground_clearance,
+  #   weight=-5.0,
+  #   params={"command_name": "motion", "sensor_name": "feet_ground_contact", "margin": 0.01},
+  # )
 
   cfg.rewards["motion_joint_pos"] = RewardTermCfg(
     func=mdp.motion_joint_position_error_exp,
@@ -233,6 +233,18 @@ def unitree_go2_flat_tracking_env_cfg(
     func=mdp.motion_anchor_linear_velocity_error_exp,
     weight=3.0,
     params={"command_name": "motion", "std": 0.5,},
+  )
+
+  cfg.rewards["motion_root_ang_vel"] = RewardTermCfg(
+    func=mdp.motion_anchor_angular_velocity_error_exp,
+    weight=5.0,
+    params={"command_name": "motion", "std": 2.5},
+  )
+
+  cfg.rewards["handstand_horizontal_drift_penalty"] = RewardTermCfg(
+    func=mdp.handstand_horizontal_drift_penalty,
+    weight=-4.0,
+    params={"command_name": "motion", "sensor_name": "feet_ground_contact"},
   )
 
   NOSE_RADIUS = 0.047

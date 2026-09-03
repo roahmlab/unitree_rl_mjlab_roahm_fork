@@ -304,6 +304,17 @@ def motion_anchor_linear_velocity_error_exp(
         -(error.square().sum(dim=-1)) / (std**2)
     )
 
+def motion_anchor_angular_velocity_error_exp(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  std: float
+) -> torch.Tensor:
+  command = cast(MotionCommand, env.command_manager.get_term(command_name))
+  error = torch.sum(
+    torch.square(command.anchor_ang_vel_w - command.robot_anchor_ang_vel_w), dim=-1
+  )
+  return torch.exp(-error / std**2)
+
 def _quat_apply(quat_wxyz: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
   """Rotate vec (..., 3) by quat_wxyz (..., 4), scalar-first."""
   w, x, y, z = quat_wxyz.unbind(-1)
@@ -327,3 +338,32 @@ class nose_ground_clearance:
     world_offset = _quat_apply(base_quat, offset.expand(base_pos.shape[0], -1))
     nose_z = (base_pos + world_offset)[:, 2]
     return min_height - nose_z    # reward version: clamp(..., min=0) below; termination: compare > 0
+
+
+class handstand_horizontal_drift_penalty:
+  LEAD_FRAMES = 25  # tune against how many frames before liftoff the drift visibly starts
+
+  def __init__(self, cfg, env: ManagerBasedRlEnv):
+    command = cast(MotionCommand, env.command_manager.get_term(cfg.params["command_name"]))
+    sensor: ContactSensor = env.scene[cfg.params["sensor_name"]]
+    data = np.load(command.cfg.motion_file)
+    sensor_primary_names = list(dict.fromkeys(slot.primary_name for slot in sensor._slots))
+    contact_names = [str(n) for n in data["foot_contact_names"]]
+    contact_prefix_to_idx = {_leg_prefix(n): i for i, n in enumerate(contact_names)}
+    perm = [contact_prefix_to_idx[_leg_prefix(n)] for n in sensor_primary_names]
+    foot_contacts = torch.tensor(data["foot_contacts"][:, perm], dtype=torch.float32, device=env.device)
+    leg_order = [_leg_prefix(n) for n in sensor_primary_names]
+    rear_cols = [i for i, leg in enumerate(leg_order) if leg in ("RL", "RR")]
+    rear_off = foot_contacts[:, rear_cols].sum(dim=-1) == 0
+    active = rear_off.clone()
+    for shift in range(1, self.LEAD_FRAMES + 1):
+      shifted = torch.roll(rear_off, shifts=-shift, dims=0)
+      shifted[-shift:] = False
+      active = active | shifted
+    self.phase_active = active.float()
+
+  def __call__(self, env: ManagerBasedRlEnv, command_name: str, sensor_name: str) -> torch.Tensor:
+    command = cast(MotionCommand, env.command_manager.get_term(command_name))
+    active = self.phase_active[command.time_steps]
+    lin_vel_err = command.anchor_lin_vel_w[:, :2] - command.robot_anchor_lin_vel_w[:, :2]
+    return active * torch.sum(torch.square(lin_vel_err), dim=-1)
