@@ -207,7 +207,7 @@ def unitree_go2_flat_tracking_env_cfg(
 
   cfg.rewards["motion_contact_tracking"] = RewardTermCfg(
     func=mdp.motion_contact_tracking,
-    weight=5.0,  # tune this
+    weight=10.0,  # tune this
     params={"command_name": "motion", "sensor_name": "feet_ground_contact"},
   )
 
@@ -243,7 +243,7 @@ def unitree_go2_flat_tracking_env_cfg(
 
   cfg.rewards["handstand_horizontal_drift_penalty"] = RewardTermCfg(
     func=mdp.handstand_horizontal_drift_penalty,
-    weight=-4.0,
+    weight=-20.0,
     params={"command_name": "motion", "sensor_name": "feet_ground_contact"},
   )
 
