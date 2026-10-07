@@ -1,0 +1,39 @@
+--- git commit ---
+66431337bfc29fc75deaf19fc8cc454ca778e69a
+
+
+--- git status ---
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   src/tasks/tracking/config/go2/env_cfgs.py
+
+no changes added to commit (use "git add" and/or "git commit -a") 
+
+
+--- git diff ---
+diff --git a/src/tasks/tracking/config/go2/env_cfgs.py b/src/tasks/tracking/config/go2/env_cfgs.py
+index 3f597ea..b4cafb1 100644
+--- a/src/tasks/tracking/config/go2/env_cfgs.py
++++ b/src/tasks/tracking/config/go2/env_cfgs.py
+@@ -207,7 +207,7 @@ def unitree_go2_flat_tracking_env_cfg(
+ 
+   cfg.rewards["motion_contact_tracking"] = RewardTermCfg(
+     func=mdp.motion_contact_tracking,
+-    weight=5.0,  # tune this
++    weight=10.0,  # tune this
+     params={"command_name": "motion", "sensor_name": "feet_ground_contact"},
+   )
+ 
+@@ -243,7 +243,7 @@ def unitree_go2_flat_tracking_env_cfg(
+ 
+   cfg.rewards["handstand_horizontal_drift_penalty"] = RewardTermCfg(
+     func=mdp.handstand_horizontal_drift_penalty,
+-    weight=-4.0,
++    weight=-20.0,
+     params={"command_name": "motion", "sensor_name": "feet_ground_contact"},
+   )
+ 
