@@ -176,7 +176,7 @@ def unitree_go2_flat_tracking_env_cfg(
   )
 
   cfg.terminations["anchor_pos"].params["threshold"] = 0.20
-  # cfg.terminations["ee_body_pos"].params["threshold"] = 0.20
+  cfg.terminations["ee_body_pos"].params["threshold"] = 0.20
 
   cfg.curriculum["anneal_anchor_pos_threshold"] = CurriculumTermCfg(
     func=mdp.termination_param_curriculum,
